@@ -2,6 +2,10 @@
 
 A sample application using Github v3 [Search API](https://developer.github.com/v3/search/).
 
+## Requirements
+
+- Go 1.11
+
 ## Usage
 
 To start the API server:
