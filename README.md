@@ -24,7 +24,7 @@ $ docker run --rm -d \
     -e MYSQL_ROOT_PASSWORD=password \
     -p 3306:3306 \
     --name mariadb \
-  mariadb:10.1
+    mariadb:10.1
 ```
 
 2. Create the database:

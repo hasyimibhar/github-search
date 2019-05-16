@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>URL Shortener</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+        
+        body {
+            padding-top: 40px;
+            padding-bottom: 40px;
+            background-color: #f5f5f5;
+        }
+        
+        .form-github-search {
+            width: 100%;
+            max-width: 700px;
+            padding: 15px;
+            margin: auto;
+        }
+        
+        .github-search-result {
+            width: 100%;
+            max-width: 700px;
+            padding: 15px;
+            margin: auto;
+        }
+        
+        .form-github-search .form-control {
+            position: relative;
+            box-sizing: border-box;
+            height: auto;
+            padding: 10px;
+            font-size: 16px;
+        }
+        
+        .form-github-search .form-control:focus {
+            z-index: 2;
+        }
+        
+        .form-github-search input[type="text"] {
+            margin-bottom: -1px;
+            border-bottom-right-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+    </style>
+</head>
+
+<body class="text-center">
+    <div id="app">
+        <form id="app" class="form-github-search" v-on:submit.prevent="onSearch">
+            <div class="row mb-3">
+                <div class="col">
+                    <label for="languages">Languages</label>
+                    <input id="languages" type="text" class="form-control" placeholder="go,python" v-model="languages">
+                </div>
+                <div class="col">
+                    <label for="topics">Topics</label>
+                    <input id="topics" type="text" class="form-control" placeholder="machine learning" v-model="topics">
+                </div>
+            </div>
+
+            <div class="row mb-5">
+                <div class="col">
+                    <button class="btn btn-lg btn-primary btn-block" type="submit" :disabled="isSearching">
+                        Search
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item" :class="{ disabled: currentPage == 1 }">
+                    <a class="page-link" href="#" tabindex="-1" v-on:click="previousPage">Previous</a>
+                </li>
+                <li v-for="p in pages" class="page-item" :class="{ active: p == currentPage }">
+                    <span>
+                        <a class="page-link" href="#" v-on:click="goToPage(p)">
+                            {{ p }}
+                        </a>
+                    </span>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" v-on:click="nextPage">Next</a>
+                </li>
+            </ul>
+        </nav>
+
+        <div v-if="!isSearching && searchResult && searchResult.items.length > 0" class="github-search-result">
+            <div v-for="repo in searchResult.items" class="card row mb-2" style="text-align: left">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        {{ repo.full_name }}
+                        <span class="badge badge-light">Stars: {{ repo.stargazers_count }}</span>
+                    </h5>
+                    <p class="card-text">{{ repo.description }}</p>
+                    <a :href="repo.html_url" class="card-link">Visit on Github</a>
+                </div>
+            </div>
+        </div>
+        <div v-if="isSearching" class="github-search-result">
+            <div class="card row mb-2">
+                <div class="card-body">
+                    <p class="card-text">Loading...</p>
+                </div>
+            </div>
+        </div>
+        <div v-if="!isSearching && (!searchResult || searchResult.items.length == 0)" class="github-search-result">
+            <div class="card row mb-2">
+                <div class="card-body">
+                    <p class="card-text">No results found</p>
+                </div>
+            </div>
+        </div>
+
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item" :class="{ disabled: currentPage == 1 }">
+                    <a class="page-link" href="#" tabindex="-1" v-on:click="previousPage">Previous</a>
+                </li>
+                <li v-for="p in pages" class="page-item" :class="{ active: p == currentPage }">
+                    <span>
+                        <a class="page-link" href="#" v-on:click="goToPage(p)">
+                            {{ p }}
+                        </a>
+                    </span>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" v-on:click="nextPage">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                error: null,
+                languages: '',
+                topics: '',
+                isSearching: false,
+                searchResult: null,
+                currentPage: 1,
+                perPage: 10
+            },
+            methods: {
+                onSearch: function() {
+                    this.currentPage = 1;
+                    this.searchResult = null;
+                    this.search();
+                },
+                nextPage: function() {
+                    this.currentPage++;
+                    this.search();
+                },
+                previousPage: function() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                        this.search();
+                    }
+                },
+                goToPage: function(p) {
+                    this.currentPage = p;
+                    this.search();
+                },
+                search: function() {
+                    this.error = null;
+                    this.isSearching = true;
+
+                    const vm = this;
+                    fetch(this.searchUrl, {
+                            method: 'GET',
+                        })
+                        .then(function(response) {
+                            response.json().then(function(json) {
+                                Vue.nextTick(function() {
+                                    if (response.status == 200) {
+                                        vm.searchResult = json;
+                                    }
+                                    vm.isSearching = false;
+                                });
+                            });
+                        });
+                }
+            },
+            computed: {
+                searchUrl: function() {
+                    return '/api/search?languages=' + this.languages +
+                        '&topics=' + this.topics +
+                        '&page=' + this.currentPage +
+                        '&per_page=' + this.perPage
+                },
+                pages: function() {
+                    if (!this.searchResult) {
+                        return [];
+                    }
+
+                    if (this.currentPage <= 2) {
+                        return [1, 2, 3];
+                    }
+
+                    return [
+                        this.currentPage - 1,
+                        this.currentPage,
+                        this.currentPage + 1
+                    ];
+                }
+            }
+        })
+    </script>
+</body>
+
+</html>
