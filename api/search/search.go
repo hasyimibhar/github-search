@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
+	apihttp "github.com/hasyimibhar/github-search/api/http"
 	"github.com/hasyimibhar/github-search/common"
 	"github.com/hasyimibhar/github-search/github"
 	"github.com/hasyimibhar/github-search/report"
@@ -39,10 +40,15 @@ func (c *SearchController) Search(w http.ResponseWriter, r *http.Request) {
 	go c.logSearch(topics, languages, resp, err)
 
 	if err != nil {
-		githubErr := err.(github.Error)
-		w.WriteHeader(githubErr.StatusCode)
-		render.Render(w, r, ErrorView{Message: githubErr.Message})
-		return
+		githubErr, ok := err.(github.Error)
+		if ok {
+			w.WriteHeader(githubErr.StatusCode)
+			render.Render(w, r, ErrorView{Message: githubErr.Message})
+			return
+		} else {
+			render.Render(w, r, apihttp.ErrInternalServerError(err))
+			return
+		}
 	}
 
 	render.Render(w, r, SearchResultView{
@@ -66,11 +72,12 @@ func (c *SearchController) logSearch(
 	}
 
 	if err != nil {
-		githubErr := err.(github.Error)
-
-		entry.ResponseStatus = githubErr.StatusCode
-		js, _ := json.Marshal(githubErr)
-		entry.ResponseContent = string(js)
+		githubErr, ok := err.(github.Error)
+		if ok {
+			entry.ResponseStatus = githubErr.StatusCode
+			js, _ := json.Marshal(githubErr)
+			entry.ResponseContent = string(js)
+		}
 	} else {
 		entry.ResponseStatus = http.StatusOK
 		js, _ := json.Marshal(resp)
