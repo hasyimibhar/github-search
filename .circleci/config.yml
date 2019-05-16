@@ -1,0 +1,73 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.11.5-stretch
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+
+      - run: go mod download
+
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+
+      - run:
+          name: Build
+          command: |
+            mkdir bin
+            GOOS=linux GOARCH=amd64 go build -o bin/github-search
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - bin
+
+      - store_artifacts:
+          path: bin
+
+  test:
+    docker:
+      - image: circleci/golang:1.11.5-stretch
+      - image: circleci/mariadb:10.1.37-ram
+        environment:
+          - MYSQL_ROOT_PASSWORD: password
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+
+      - attach_workspace:
+          at: /tmp/workspace
+
+      - run: cp /tmp/workspace/bin/github-search $GOPATH/bin/github-search
+
+      - run:
+          name: Wait for database
+          command: dockerize -wait tcp://127.0.0.1:3306 -timeout 120s
+
+      - run: go get -u github.com/jstemmer/go-junit-report
+      - run: mkdir test
+
+      - run: go test -v -timeout=15m ./... | go-junit-report > test/report.xml
+
+      - store_test_results:
+          path: test
+
+workflows:
+  version: 2
+  build-test:
+    jobs:
+      - build
+
+      - test:
+          requires:
+            - build
