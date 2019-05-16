@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>URL Shortener</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+        
+        body {
+            padding-top: 40px;
+            padding-bottom: 40px;
+            background-color: #f5f5f5;
+        }
+        
+        .github-search-admin {
+            width: 100%;
+            max-width: 700px;
+            padding: 15px;
+            margin: auto;
+        }
+        
+        .form-github-search .form-control {
+            position: relative;
+            box-sizing: border-box;
+            height: auto;
+            padding: 10px;
+            font-size: 16px;
+        }
+        
+        .form-github-search .form-control:focus {
+            z-index: 2;
+        }
+        
+        .form-github-search input[type="text"] {
+            margin-bottom: -1px;
+            border-bottom-right-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+        
+        .axis {
+            font: 10px sans-serif;
+        }
+        
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: #000;
+            shape-rendering: crispEdges;
+        }
+    </style>
+</head>
+
+<body class="text-center">
+    <div id="app" class="github-search-admin">
+        <h3 class="mb-4">Admin Dashboard</h3>
+        <div class="card mb-2">
+            <div class="card-body" id="total-searches">
+                <h5 class="card-title">Search count</h5>
+                <h6 class="card-subtitle mb-2 text-muted">for the past 7 days</h6>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body" id="searches-breakdown">
+                <h5 class="card-title">Search breakdown</h5>
+                <h6 class="card-subtitle mb-2 text-muted">by languages</h6>
+            </div>
+        </div>
+    </div>
+
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                error: null,
+                languages: '',
+                topics: '',
+                isSearching: false,
+                searchResult: null,
+                currentPage: 1,
+                perPage: 10
+            },
+            mounted: function() {
+                var today = moment().startOf('day');
+                var results = [];
+                for (var i = 0; i < 7; i++) {
+                    results.push(this.fetchReport(today.clone().add(-i, 'day')));
+                }
+
+                Promise.all(results.reverse()).then(res => {
+                    Vue.nextTick(() => {
+                        this.initSearchCountChart(res);
+                    });
+                });
+            },
+            methods: {
+                fetchReport(date) {
+                    const vm = this;
+
+                    const from = date.unix();
+                    const to = date.clone().add(1, 'day').unix();
+
+                    return new Promise((resolve, reject) => {
+                        fetch('/api/admin/reports?from=' + from + '&to=' + to, {
+                                method: 'GET',
+                            })
+                            .then(function(response) {
+                                response.json().then(function(json) {
+                                    Vue.nextTick(function() {
+                                        if (response.status == 200) {
+                                            resolve(json);
+                                        } else {
+                                            reject(json);
+                                        }
+                                    });
+                                });
+                            });
+                    });
+                },
+                initSearchCountChart(data) {
+                    var margin = {
+                            top: 20,
+                            right: 20,
+                            bottom: 70,
+                            left: 40
+                        },
+                        width = 500 - margin.left - margin.right,
+                        height = 300 - margin.top - margin.bottom;
+
+                    // Parse the date / time
+                    var parseDate = d3.time.format("%Y-%m-%d %H:%M:%S").parse;
+
+                    var x = d3.scale.ordinal().rangeRoundBands([0, width], .05);
+
+                    var y = d3.scale.linear().range([height, 0]);
+
+                    var xAxis = d3.svg.axis()
+                        .scale(x)
+                        .orient("bottom")
+                        .tickFormat(d3.time.format("%Y-%m-%d"));
+
+                    var yAxis = d3.svg.axis()
+                        .scale(y)
+                        .orient("left")
+                        .ticks(10);
+
+                    var svg = d3.select("#total-searches").append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform",
+                            "translate(" + margin.left + "," + margin.top + ")");
+
+                    data = data.map(d => {
+                        return {
+                            date: parseDate(d.to),
+                            value: +d.total_searches
+                        }
+                    })
+
+                    x.domain(data.map(function(d) {
+                        return d.date;
+                    }));
+                    y.domain([0, d3.max(data, function(d) {
+                        return d.value;
+                    })]);
+
+                    svg.append("g")
+                        .attr("class", "x axis")
+                        .attr("transform", "translate(0," + height + ")")
+                        .call(xAxis)
+                        .selectAll("text")
+                        .style("text-anchor", "end")
+                        .attr("dx", "-.8em")
+                        .attr("dy", "-.55em")
+                        .attr("transform", "rotate(-90)");
+
+                    svg.append("g")
+                        .attr("class", "y axis")
+                        .call(yAxis)
+                        .append("text")
+                        .attr("transform", "rotate(-90)")
+                        .attr("y", 6)
+                        .attr("dy", ".71em")
+                        .style("text-anchor", "end")
+                        .text("Total");
+
+                    svg.selectAll("bar")
+                        .data(data)
+                        .enter().append("rect")
+                        .style("fill", "steelblue")
+                        .attr("x", function(d) {
+                            return x(d.date);
+                        })
+                        .attr("width", x.rangeBand())
+                        .attr("y", function(d) {
+                            return y(d.value);
+                        })
+                        .attr("height", function(d) {
+                            return height - y(d.value);
+                        });
+                }
+            },
+            computed: {}
+        })
+    </script>
+</body>
+
+</html>
