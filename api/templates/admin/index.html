@@ -69,11 +69,44 @@
                 <h6 class="card-subtitle mb-2 text-muted">for the past 7 days</h6>
             </div>
         </div>
-        <div class="card">
+        <div class="card mb-2">
             <div class="card-body" id="searches-breakdown">
                 <h5 class="card-title">Search breakdown</h5>
                 <h6 class="card-subtitle mb-2 text-muted">by languages</h6>
                 <h6 class="card-subtitle mb-2 text-muted">today</h6>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Latest searches</h5>
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Languages</th>
+                            <th scope="col">Topics</th>
+                            <th scope="col">Response status</th>
+                            <th scope="col">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="search in latestSearches">
+                            <td v-if="search.languages.length">{{ search.languages.join(', ') }}</td>
+                            <td v-else style="color:#cccccc">empty</td>
+                            <td v-if="search.topics.length">{{ search.topics.join(', ') }}</td>
+                            <td v-else style="color:#cccccc">empty</td>
+                            <td v-if="search.response_status == 200">
+                                <span class="badge badge-success">{{ search.response_status }}</span>
+                            </td>
+                            <td v-else>
+                                <span class="badge badge-alert">{{ search.response_status }}</span>
+                            </td>
+                            <td>
+                                {{ moment.utc(search.created_at).tz('Asia/Kuala_Lumpur').format("YYYY-MM-DD hh:mm:ss a") }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -82,19 +115,16 @@
     <script src="d3.layout.cloud.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.25/moment-timezone-with-data.min.js"></script>
     <script type="text/javascript">
         var app = new Vue({
             el: '#app',
             data: {
-                error: null,
-                languages: '',
-                topics: '',
-                isSearching: false,
-                searchResult: null,
-                currentPage: 1,
-                perPage: 10
+                latestSearches: []
             },
             mounted: function() {
+                this.fetchLatestSearches(10);
+
                 var today = moment().startOf('day');
                 var results = [];
                 for (var i = 0; i < 7; i++) {
@@ -109,6 +139,20 @@
                 });
             },
             methods: {
+                fetchLatestSearches(n) {
+                    const vm = this;
+
+                    fetch('/api/admin/searches?n=' + n, {
+                            method: 'GET',
+                        })
+                        .then(function(response) {
+                            response.json().then(function(json) {
+                                Vue.nextTick(function() {
+                                    vm.latestSearches = json;
+                                });
+                            });
+                        });
+                },
                 fetchReport(date) {
                     const vm = this;
 
